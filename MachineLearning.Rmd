@@ -1,0 +1,119 @@
+---
+title: "Practical Machine Learning"
+author: "Kenneth Kronkvist"
+date: "May 12, 2019"
+output: html_document
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = T)
+```
+
+## Background  
+
+A research was done to investigate if accelerometers can detect if a weight lifting exercise was done correct or if it was done in the four most common incorrect ways. The accelerometers were located on the belt, forearm, arm, and dumbell (hand weight) of 6 participants.  
+  
+The participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions. They were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes:  
+  
+- Class A: exactly according to the specification  
+- Class B: throwing the elbows to the front  
+- Class C: lifting the dumbbell only halfway  
+- Class D: lowering the dumbbell only halfway  
+- Class E: throwing the hips to the front  
+  
+More information is available from the website here:   http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Goal  
+  
+The goal is to predict in which of the 5 manners the participants did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.  
+
+## Summary  
+
+Since we have a large sample size (19622 obs.) we can afford cross-validation by dividing the training data into two subsets: 1) a training set for training the model and 2) a validation set for assessing the model performance.  
+  
+After cleaning the data we still have 54 variables/features from which we should be able to predict the correct class (A, B, C, D or E). Decision tree and random forest algorithms are known for their ability of detecting the most important features (in this case out of 54 features) for classification. Therefor Classification Tree and Random Forest was selected for model fitting.  
+  
+The Random Forest model has a much higher accuracy of 0.9967 than the Classification Tree accuracy of 0.7480. Therefore Random Forest model was selected as prediction model to predict the 20 different test cases.  
+  
+The expected out-of-sample error corresponds to the quantity: 1 - accuracy in the cross-validation SubTesting data, which is 0.0033 or 0.33%.  
+  
+## Getting and cleaning the data  
+
+```{r, message = F, warning = F}
+
+# Loading libraries and setting the seed for reproduceability
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+set.seed(1)
+
+# Loading datasets. Various indicators of missing data (“NA”, “#DIV/0!” and “”) 
+# are all set to NA so they can be processed.
+training <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), 
+                     na.strings = c("NA","#DIV/0!",""))
+testing <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), 
+                    na.strings = c("NA","#DIV/0!",""))
+
+# Deleting columns with all NAs
+testing = testing[, colSums(is.na(testing)) == 0]
+training = training[, colSums(is.na(training)) == 0]
+
+# Removing Near Zero Variance columns as they are not useful in our predictions
+testing = testing[, -nearZeroVar(testing)]
+training = training[, -nearZeroVar(training)]
+
+# Removing other variables not useful in our predictions, e.g. names and dates
+testing = testing[, -c(1:5)]
+training = training[, -c(1:5)]
+```
+
+## Cross-validation subsets  
+
+Cross-validation is performed by dividing the training data into two subsets. The first is a training set (subTraining) with 60% of the data which is used to train the model. The second is a validation set (subTesting, 40%) used to assess model performance. Once the most accurate model is choosen, it will be tested on the original 'testing' data set.  
+
+```{r, message = F, warning = F}
+# Creating the subTraining and subTesting sets (60/40 split)
+subsets = createDataPartition(y = training$classe, p = 0.6, list = F)
+subTraining = training[subsets,]
+subTesting = training[-subsets,]
+```
+
+## Model evaluations  
+
+Decision tree and random forest algorithms are known for their ability of detecting the most important features (in this case out of 54 features) for classification. Therefor Classification Tree and Random Forest was selected for model fitting.  
+
+```{r, message = F, warning = F}
+# Plotting the ditribution of the variable 'classe'
+plot(subTraining$classe)
+
+# Creating two models and predictions to compare, a Classification Tree and a Random Forest
+modelCTree = rpart(classe ~ ., data = subTraining, method = "class")
+modelRForest = randomForest(classe ~ ., data = subTraining, method = "class")
+predictionCTree = predict(modelCTree, subTesting, type = "class")
+predictionRForest = predict(modelRForest, subTesting, type = "class")
+
+# Plotting the classication tree
+rpart.plot(modelCTree, main = "Model 1: Classification Tree", extra = 110, under = T, faclen = 0)
+
+# Looking at the test results with the confusion matrix for each
+confusionMatrixCTree = confusionMatrix(predictionCTree, subTesting$classe)
+confusionMatrixCTree
+confusionMatrixRForest = confusionMatrix(predictionRForest, subTesting$classe)
+confusionMatrixRForest
+```
+
+The Random Forest model has a much higher accuracy of 0.9967 than the Classification Tree accuracy of 0.7480. Therefore Random Forest model was selected as prediction model to predict the 20 different test cases.  
+  
+The expected out-of-sample error corresponds to the quantity: 1 - accuracy in the cross-validation SubTesting data, which is 0.0033 or 0.33%.
+  
+## Submission  
+
+We predict outcome levels on the original 'testing' data set using Random Forest algorithm.  
+
+```{r, message = F, warning = F}
+predictions = predict(modelRForest, testing, type="class")
+predictions
+```
+  
